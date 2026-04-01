@@ -56,15 +56,12 @@
 //!
 //! # Examples
 //! See the tests module for more comprehensive usage examples.
+use async_channel::{unbounded, Receiver, Sender};
+use dashmap::DashMap;
 use std::error::Error;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::sync::{Arc, Weak};
-use async_channel::{unbounded, Receiver, Sender};
-use dashmap::DashMap;
-
-#[cfg(test)]
-mod tests;
 
 /// A trait that defines the requirements for types that can be used as Pubsub topics.
 ///
@@ -152,7 +149,9 @@ impl<T: PubsubTopic, P: Clone> Pubsub<T, P> {
     /// // let pubsub = Pubsub::new();
     /// ```
     pub fn new() -> Self {
-        Self { inner: Arc::new(PubsubInner::new()) }
+        Self {
+            inner: Arc::new(PubsubInner::new()),
+        }
     }
 
     /// Subscribes to one or more topics and returns a new Subscriber instance.
@@ -205,14 +204,18 @@ impl<T: PubsubTopic, P: Clone> PubsubInner<T, P> {
     async fn publish(&self, topic: T, payload: P) {
         if let Some(subs) = self.m.get(&topic) {
             for sub in subs.iter() {
-                sub.publish(Payload::new(topic.clone(), payload.clone())).await;
+                sub.publish(Payload::new(topic.clone(), payload.clone()))
+                    .await;
             }
         }
     }
 
     fn add_subscriber(&self, sub: &Arc<SubscriberInner<T, P>>) {
         for topic in &sub.topics {
-            self.m.entry(topic.clone()).or_insert_with(Vec::new).push(Arc::clone(&sub));
+            self.m
+                .entry(topic.clone())
+                .or_insert_with(Vec::new)
+                .push(Arc::clone(&sub));
         }
     }
 
@@ -315,7 +318,7 @@ impl<T: PubsubTopic, P: Clone> SubscriberInner<T, P> {
 
     async fn recv(&self) -> Result<(T, P)> {
         let Ok(payload) = self.rx.recv().await else {
-            return Err(PubsubError)
+            return Err(PubsubError);
         };
         Ok((payload.topic, payload.payload))
     }
@@ -351,3 +354,23 @@ impl Display for PubsubError {
 impl Error for PubsubError {}
 
 type Result<T> = std::result::Result<T, PubsubError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn dropped_subscribers_are_cleaned_up_from_topic_map() {
+        let pubsub: Pubsub<&str, String> = Pubsub::new();
+        let subscriber1 = pubsub.subscribe(vec!["a", "b"]).await;
+        let subscriber2 = pubsub.subscribe(vec!["a", "b"]).await;
+
+        assert_eq!(pubsub.inner.m.get("a").unwrap().len(), 2);
+
+        drop(subscriber1);
+        assert_eq!(pubsub.inner.m.get("a").unwrap().len(), 1);
+
+        drop(subscriber2);
+        assert_eq!(pubsub.inner.m.get("a").unwrap().len(), 0);
+    }
+}

@@ -10,5 +10,7 @@ keywords = ["pubsub", "publish", "subscribe"]
 
 [dependencies]
 async-channel = "2.3.1"
-tokio = { version = "1.43.0", features = ["full"] }
 dashmap = "6.1.0"
+
+[dev-dependencies]
+tokio = { version = "1.43.0", features = ["full"] }
