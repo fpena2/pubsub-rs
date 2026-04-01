@@ -74,7 +74,7 @@ The main error type is `PubsubError`, which occurs when:
 
 ## Examples
 
-See the [tests module](https://github.com/alaingilbert/pubsub-rs/blob/master/src/tests.rs) for more comprehensive usage examples.
+See the [integration tests](tests/pubsub/) for more comprehensive usage examples.
 
 ## License
 
